@@ -1,0 +1,40 @@
+name: Deploy FastAPI no Google Cloud Run
+
+on:
+  push:
+    branches:
+      - main # ou a branch principal do seu projeto
+
+env:
+  PROJECT_ID: imersao-devops-464716 # Substitua pelo ID do seu projeto GCP
+  SERVICE_NAME: imersao-devops # Substitua pelo nome do seu serviço Cloud Run
+  REGION: southamerica-east1 # Substitua pela região do seu serviço Cloud Run (ex: us-central1, southamerica-east1)
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout do código
+      uses: actions/checkout@v4
+
+    - name: Autenticar no Google Cloud
+      id: auth
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+    - name: Configurar o Docker para Google Container Registry/Artifact Registry
+      run: gcloud auth configure-docker --quiet
+
+    - name: Construir e fazer push da imagem Docker
+      run: |
+        docker build -t gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} .
+        docker push gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+
+    - name: Deploy no Google Cloud Run
+      uses: google-github-actions/deploy-cloudrun@v2
+      with:
+        service: ${{ env.SERVICE_NAME }}
+        image: gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+        region: ${{ env.REGION }}
+        project_id: ${{ env.PROJECT_ID }}
